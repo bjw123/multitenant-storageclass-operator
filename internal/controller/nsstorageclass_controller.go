@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	multitenantwrapperv1 "multitenant.storageclass/namespaced-wrapper/api/v1"
@@ -52,12 +53,13 @@ type NSStorageClassReconciler struct {
 func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// get NS storage class
+	// check if namespaced storageclass exists
 	var namespacedStorageClass multitenantwrapperv1.NSStorageClass
 	if err := r.Get(ctx, req.NamespacedName, &namespacedStorageClass); err != nil {
 		logger.Error(err, "unable to fetch Namespaced Storage Class")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	// get storageClass
+	// check if  storageClass exists, create if needed
 	var sc storagev1.StorageClass
 	scName := types.NamespacedName{Name: namespacedStorageClass.Namespace + namespacedStorageClass.Name, Namespace: ""} //storage class is not bound to a namespace
 	if err := r.Get(ctx, scName, &sc); err != nil {
@@ -65,6 +67,27 @@ func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		sc = createStorageClass(namespacedStorageClass)
 		if err = r.Create(ctx, &sc); err != nil {
 			logger.Error(err, "unable to create storageClass")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// finalizer logic to clean up storageClass on deletion
+	finalizer := "multitenant.storageclass/finalizer"
+	if namespacedStorageClass.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&namespacedStorageClass, finalizer) {
+			//not being deleted, lets add the finalizer
+			controllerutil.AddFinalizer(&namespacedStorageClass, finalizer)
+			if err := r.Update(ctx, &namespacedStorageClass); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		//object is being deleted
+		if controllerutil.ContainsFinalizer(&namespacedStorageClass, finalizer) {
+			if err := r.Delete(ctx, &sc); err != nil {
+				logger.Error(err, "unable to delete storageclass bound to namespaced storage class")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
