@@ -18,8 +18,11 @@ package controller
 
 import (
 	"context"
-
+	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -47,9 +50,23 @@ type NSStorageClassReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.3/pkg/reconcile
 func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	// get NS storage class
+	var namespacedStorageClass multitenantwrapperv1.NSStorageClass
+	if err := r.Get(ctx, req.NamespacedName, &namespacedStorageClass); err != nil {
+		logger.Error(err, "unable to fetch Namespaced Storage Class")
+	}
+	// get storageClass
+	var sc storagev1.StorageClass
+	scName := types.NamespacedName{Name: namespacedStorageClass.Namespace + namespacedStorageClass.Name, Namespace: ""} //storage class is not bound to a namespace
+	if err := r.Get(ctx, scName, &sc); err != nil {
+		//create storageClass if does not exist
+		sc = createStorageClass(namespacedStorageClass)
+		if err = r.Create(ctx, &sc); err != nil {
+			logger.Error(err, "unable to create storageClass")
+		}
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -59,4 +76,26 @@ func (r *NSStorageClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&multitenantwrapperv1.NSStorageClass{}).
 		Complete(r)
+}
+
+func createStorageClass(nsc multitenantwrapperv1.NSStorageClass) storagev1.StorageClass {
+	var pol v1.PersistentVolumeReclaimPolicy
+	if nsc.Spec.ReclaimPolicy == "Reclaim" {
+		pol = v1.PersistentVolumeReclaimRetain
+	} else {
+		pol = v1.PersistentVolumeReclaimDelete
+	}
+
+	storageClass := storagev1.StorageClass{
+		TypeMeta:             metav1.TypeMeta{},
+		ObjectMeta:           metav1.ObjectMeta{},
+		Provisioner:          nsc.Spec.Provisioner,
+		Parameters:           nsc.Spec.Parameters,
+		ReclaimPolicy:        &pol,
+		MountOptions:         nsc.Spec.MountOptions,
+		AllowVolumeExpansion: nsc.Spec.AllowVolumeExpansion,
+		VolumeBindingMode:    (*storagev1.VolumeBindingMode)(nsc.Spec.VolumeBindingMode),
+		AllowedTopologies:    nil,
+	}
+	return storageClass
 }
