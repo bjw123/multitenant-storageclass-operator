@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- multitenant-wrapper_v1_nsstorageclass.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

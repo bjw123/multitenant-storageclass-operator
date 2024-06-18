@@ -1,0 +1,9 @@
+apiVersion: multitenant-wrapper.multitenant.storageclass/v1
+kind: NSStorageClass
+metadata:
+  labels:
+    app.kubernetes.io/name: multitenant-storageclass-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: nsstorageclass-sample
+spec:
+  # TODO(user): Add fields here

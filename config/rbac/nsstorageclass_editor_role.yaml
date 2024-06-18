@@ -1,0 +1,27 @@
+# permissions for end users to edit nsstorageclasses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: multitenant-storageclass-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: nsstorageclass-editor-role
+rules:
+- apiGroups:
+  - multitenant-wrapper.multitenant.storageclass
+  resources:
+  - nsstorageclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multitenant-wrapper.multitenant.storageclass
+  resources:
+  - nsstorageclasses/status
+  verbs:
+  - get

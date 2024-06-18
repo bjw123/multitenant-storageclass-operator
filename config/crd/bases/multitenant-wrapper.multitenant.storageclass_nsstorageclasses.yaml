@@ -1,0 +1,73 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: nsstorageclasses.multitenant-wrapper.multitenant.storageclass
+spec:
+  group: multitenant-wrapper.multitenant.storageclass
+  names:
+    kind: NSStorageClass
+    listKind: NSStorageClassList
+    plural: nsstorageclasses
+    singular: nsstorageclass
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: NSStorageClass is the Schema for the nsstorageclasses API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NSStorageClassSpec defines the desired state of NSStorageClass
+            properties:
+              allowVolumeExpansion:
+                type: boolean
+              mountOptions:
+                items:
+                  type: string
+                type: array
+              parameters:
+                additionalProperties:
+                  type: string
+                type: object
+              provisioner:
+                description: |-
+                  INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                type: string
+              reclaimPolicy:
+                type: string
+              volumeBindingMode:
+                description: VolumeBindingMode indicates how PersistentVolumeClaims
+                  should be bound.
+                type: string
+            required:
+            - provisioner
+            type: object
+          status:
+            description: NSStorageClassStatus defines the observed state of NSStorageClass
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

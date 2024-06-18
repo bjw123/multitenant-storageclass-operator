@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - multitenant-wrapper.multitenant.storageclass
+  resources:
+  - nsstorageclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multitenant-wrapper.multitenant.storageclass
+  resources:
+  - nsstorageclasses/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - multitenant-wrapper.multitenant.storageclass
+  resources:
+  - nsstorageclasses/status
+  verbs:
+  - get
+  - patch
+  - update
