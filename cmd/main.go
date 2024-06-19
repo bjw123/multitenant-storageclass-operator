@@ -122,6 +122,7 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+	controller.InitClient(mgr.GetConfig())
 
 	if err = (&controller.NSStorageClassReconciler{
 		Client: mgr.GetClient(),
