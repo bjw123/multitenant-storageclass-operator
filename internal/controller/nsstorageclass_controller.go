@@ -40,6 +40,9 @@ type NSStorageClassReconciler struct {
 //+kubebuilder:rbac:groups=multitenant-wrapper.multitenant.storageclass,resources=nsstorageclasses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=multitenant-wrapper.multitenant.storageclass,resources=nsstorageclasses/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=multitenant-wrapper.multitenant.storageclass,resources=nsstorageclasses/finalizers,verbs=update
+//permissions to create storage class
+//+kubebuilder:rbac:groups=storage.k8s.io/v1,resources=storageclass,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=storage.k8s.io/v1,resources=storageclass/ownerreferences,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -65,6 +68,11 @@ func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.Get(ctx, scName, &sc); err != nil {
 		//create storageClass if does not exist
 		sc = createStorageClass(namespacedStorageClass)
+		err := controllerutil.SetOwnerReference(&namespacedStorageClass, &sc, r.Scheme)
+		if err != nil {
+			logger.Error(err, "unable to add owner ref to storageClass")
+			return ctrl.Result{}, err
+		}
 		if err = r.Create(ctx, &sc); err != nil {
 			logger.Error(err, "unable to create storageClass")
 			return ctrl.Result{}, err
@@ -90,7 +98,6 @@ func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		}
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -120,5 +127,7 @@ func createStorageClass(nsc multitenantwrapperv1.NSStorageClass) storagev1.Stora
 		VolumeBindingMode:    (*storagev1.VolumeBindingMode)(nsc.Spec.VolumeBindingMode),
 		AllowedTopologies:    nil,
 	}
+	ownerRef := metav1.OwnerReference{Name: nsc.Name, Kind: nsc.Kind, UID: nsc.UID, APIVersion: nsc.APIVersion}
+	storageClass.OwnerReferences = []metav1.OwnerReference{ownerRef}
 	return storageClass
 }
