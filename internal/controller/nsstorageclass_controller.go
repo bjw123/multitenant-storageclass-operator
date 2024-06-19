@@ -22,7 +22,8 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -37,9 +38,21 @@ type NSStorageClassReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+var (
+	GeneratedClient *kubernetes.Clientset
+)
+
+func InitClient(config *rest.Config) {
+	GeneratedClient = kubernetes.NewForConfigOrDie(config)
+
+}
+
 //+kubebuilder:rbac:groups=multitenant-wrapper.multitenant.storageclass,resources=nsstorageclasses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=multitenant-wrapper.multitenant.storageclass,resources=nsstorageclasses/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=multitenant-wrapper.multitenant.storageclass,resources=nsstorageclasses/finalizers,verbs=update
+//permissions to create storage class
+//+kubebuilder:rbac:groups=storage.k8s.io/v1,resources=storageclass,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=storage.k8s.io/v1,resources=storageclass/ownerreferences,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -56,19 +69,19 @@ func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// check if namespaced storageclass exists
 	var namespacedStorageClass multitenantwrapperv1.NSStorageClass
 	if err := r.Get(ctx, req.NamespacedName, &namespacedStorageClass); err != nil {
-		logger.Error(err, "unable to fetch Namespaced Storage Class")
+		//logger.Error(err, "unable to fetch Namespaced Storage Class")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	// check if  storageClass exists, create if needed
-	var sc storagev1.StorageClass
-	scName := types.NamespacedName{Name: namespacedStorageClass.Namespace + namespacedStorageClass.Name, Namespace: ""} //storage class is not bound to a namespace
-	if err := r.Get(ctx, scName, &sc); err != nil {
-		//create storageClass if does not exist
-		sc = createStorageClass(namespacedStorageClass)
-		if err = r.Create(ctx, &sc); err != nil {
-			logger.Error(err, "unable to create storageClass")
+	scName := req.Namespace + "-" + req.Name
+	storageClass, err := GeneratedClient.StorageV1().StorageClasses().Get(ctx, scName, metav1.GetOptions{})
+	if err != nil {
+		sc := createStorageClass(namespacedStorageClass, scName)
+		_, err := GeneratedClient.StorageV1().StorageClasses().Create(ctx, &sc, metav1.CreateOptions{})
+		if err != nil {
+			logger.Error(err, "unable to make storageClass")
 			return ctrl.Result{}, err
 		}
+		logger.Info("creating storageClass " + scName)
 	}
 
 	// finalizer logic to clean up storageClass on deletion
@@ -84,13 +97,13 @@ func (r *NSStorageClassReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	} else {
 		//object is being deleted
 		if controllerutil.ContainsFinalizer(&namespacedStorageClass, finalizer) {
-			if err := r.Delete(ctx, &sc); err != nil {
-				logger.Error(err, "unable to delete storageclass bound to namespaced storage class")
+			if err := GeneratedClient.StorageV1().StorageClasses().Delete(ctx, storageClass.Name, metav1.DeleteOptions{}); err != nil {
+				logger.Error(err, "unable to delete storage class bound to namespaced storage class")
 				return ctrl.Result{}, err
 			}
+			logger.Info("deleting storage class " + storageClass.Name)
 		}
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -101,7 +114,7 @@ func (r *NSStorageClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func createStorageClass(nsc multitenantwrapperv1.NSStorageClass) storagev1.StorageClass {
+func createStorageClass(nsc multitenantwrapperv1.NSStorageClass, name string) storagev1.StorageClass {
 	var pol v1.PersistentVolumeReclaimPolicy
 	if nsc.Spec.ReclaimPolicy == "Reclaim" {
 		pol = v1.PersistentVolumeReclaimRetain
@@ -111,7 +124,7 @@ func createStorageClass(nsc multitenantwrapperv1.NSStorageClass) storagev1.Stora
 
 	storageClass := storagev1.StorageClass{
 		TypeMeta:             metav1.TypeMeta{},
-		ObjectMeta:           metav1.ObjectMeta{},
+		ObjectMeta:           metav1.ObjectMeta{Name: name},
 		Provisioner:          nsc.Spec.Provisioner,
 		Parameters:           nsc.Spec.Parameters,
 		ReclaimPolicy:        &pol,
@@ -120,5 +133,7 @@ func createStorageClass(nsc multitenantwrapperv1.NSStorageClass) storagev1.Stora
 		VolumeBindingMode:    (*storagev1.VolumeBindingMode)(nsc.Spec.VolumeBindingMode),
 		AllowedTopologies:    nil,
 	}
+	ownerRef := metav1.OwnerReference{Name: nsc.Name, Kind: nsc.Kind, UID: nsc.UID, APIVersion: nsc.APIVersion} //provide owner reference to the managing abstraction
+	storageClass.OwnerReferences = []metav1.OwnerReference{ownerRef}
 	return storageClass
 }
