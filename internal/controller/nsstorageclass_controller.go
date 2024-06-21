@@ -135,5 +135,6 @@ func createStorageClass(nsc multitenantwrapperv1.NSStorageClass, name string) st
 	}
 	ownerRef := metav1.OwnerReference{Name: nsc.Name, Kind: nsc.Kind, UID: nsc.UID, APIVersion: nsc.APIVersion} //provide owner reference to the managing abstraction
 	storageClass.OwnerReferences = []metav1.OwnerReference{ownerRef}
+
 	return storageClass
 }

@@ -21,6 +21,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -107,6 +108,13 @@ func (in *NSStorageClassSpec) DeepCopyInto(out *NSStorageClassSpec) {
 		in, out := &in.VolumeBindingMode, &out.VolumeBindingMode
 		*out = new(VolumeBindingMode)
 		**out = **in
+	}
+	if in.AllowedTopologies != nil {
+		in, out := &in.AllowedTopologies, &out.AllowedTopologies
+		*out = make([]corev1.TopologySelectorTerm, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 
