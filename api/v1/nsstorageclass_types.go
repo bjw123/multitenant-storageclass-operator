@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -31,23 +32,28 @@ type NSStorageClassSpec struct {
 	//+optional
 	Parameters map[string]string `json:"parameters,omitempty"`
 	//+optional
-	ReclaimPolicy ReclaimPolicy `json:"reclaimPolicy,omitempty"`
+	ReclaimPolicy v1.PersistentVolumeReclaimPolicy `json:"reclaimPolicy,omitempty"`
 	//+optional
 	MountOptions []string `json:"mountOptions,omitempty"`
 	//+optional
 	AllowVolumeExpansion *bool `json:"allowVolumeExpansion,omitempty"`
 	//+optional
-	VolumeBindingMode *VolumeBindingMode `json:"volumeBindingMode,omitempty"`
+	VolumeBindingMode *VolumeBindingMode        `json:"volumeBindingMode,omitempty"`
+	AllowedTopologies []v1.TopologySelectorTerm `json:"allowedTopologies,omitempty"`
 }
 
-type ReclaimPolicy string
-
-const (
-	Retain ReclaimPolicy = "Retain"
-	Delete ReclaimPolicy = "Delete" //default
-	//Recycle ReclaimPolicy = "Recycle" //depreciated
-
-)
+/*
+storagev1.StorageClass{
+TypeMeta:             metav1.TypeMeta{},
+ObjectMeta:           metav1.ObjectMeta{},
+Provisioner:          "",
+Parameters:           nil,
+ReclaimPolicy:        nil,
+MountOptions:         nil,
+AllowVolumeExpansion: nil,
+VolumeBindingMode:    nil,
+AllowedTopologies:    nil,
+}*/
 
 // VolumeBindingMode indicates how PersistentVolumeClaims should be bound.
 type VolumeBindingMode string
